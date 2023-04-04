@@ -366,7 +366,27 @@ static void msg_typed(char *line)
 			mymsg = string(line);
 			transcript.push_back("me: " + mymsg);
 			ssize_t nbytes;
-			if ((nbytes = send(sockfd,line,mymsg.length(),0)) == -1)
+
+			init("params");
+			NEWZ(a);
+			NEWZ(A);
+			NEWZ(B);
+			dhGen(a,A);
+
+			const size_t klen = 128;
+			unsigned char kA[klen];
+			dhFinal(a, A, B, kA, klen);
+
+			char sender[256];
+			for (size_t i = 0; i < klen; i++) {
+				sprintf(&sender[i*2],"%02x", kA[i]);
+			}
+
+			strcat(sender, line);
+
+			char* s = sender;
+
+			if ((nbytes = send(sockfd,s,mymsg.length(),0)) == -1)
 				error("send failed");
 		}
 		pthread_mutex_lock(&qmx);
