@@ -667,7 +667,7 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-	size_t maxlen = 256;
+	size_t maxlen = 512;
 	char msg[maxlen+1];
 	ssize_t nbytes;
 	while (1) {
