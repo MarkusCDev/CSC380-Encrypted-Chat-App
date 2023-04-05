@@ -26,6 +26,11 @@ using std::pair;
 #include <random>
 #include <cstring>
 
+// Public, Secret key
+mpz_t A_pk;
+mpz_t B_pk;
+mpz_t A_sk;
+
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
 static pthread_t tcurses;   /* setup curses and draw messages from queue */
@@ -209,6 +214,22 @@ int initServerNet(int port)
 			error("Server failed to recieve SYN from client");
 		}
 
+		init("params");
+		NEWZ(a);
+		NEWZ(A);
+		dhGen(a, A);
+
+		char S[1024];	
+		mpz_get_str(S, 16, A);
+		send(sockfd, S, 1024, 0);
+
+		mpz_set(A_pk, A);
+		mpz_set(A_sk, a);
+
+		char buf[1024];
+		recv(sockfd, buf, 1024, 0);
+		mpz_set_str(B_pk, buf, 16);
+			
     /* Testing - Works*/
 
     // char buffer[10];
@@ -269,7 +290,21 @@ static int initClientNet(char* hostname, int port)
 			error("Client failed to recieve SYN+1 ACK from server");
 		}
 
+		init("params");
+		NEWZ(a);
+		NEWZ(A);
+		dhGen(a, A);
 
+		char buf[1024];
+		recv(sockfd, buf, 1024, 0);
+
+		mpz_set(A_pk, A);
+		mpz_set(A_sk, a);
+		mpz_set_str(B_pk, buf, 16);
+
+		char S[1024];
+		mpz_get_str(S, 16, A);
+		send(sockfd, S, 1024, 0);
     /* Testing -- WORKS*/
 
     // send(sockfd, "SYN", 3, 0);
@@ -367,26 +402,7 @@ static void msg_typed(char *line)
 			transcript.push_back("me: " + mymsg);
 			ssize_t nbytes;
 
-			init("params");
-			NEWZ(a);
-			NEWZ(A);
-			NEWZ(B);
-			dhGen(a,A);
-
-			const size_t klen = 128;
-			unsigned char kA[klen];
-			dhFinal(a, A, B, kA, klen);
-
-			char sender[256];
-			for (size_t i = 0; i < klen; i++) {
-				sprintf(&sender[i*2],"%02x", kA[i]);
-			}
-
-			strcat(sender, line);
-
-			char* s = sender;
-
-			if ((nbytes = send(sockfd,s,mymsg.length(),0)) == -1)
+			if ((nbytes = send(sockfd,line,mymsg.length(),0)) == -1)
 				error("send failed");
 		}
 		pthread_mutex_lock(&qmx);
