@@ -31,6 +31,10 @@ mpz_t A_pk;
 mpz_t B_pk;
 mpz_t A_sk;
 
+// DHF
+char hmac_key[256+1];
+char aes_key[256+1];
+
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
 static pthread_t tcurses;   /* setup curses and draw messages from queue */
@@ -68,108 +72,6 @@ int listensock, sockfd;
 	perror(msg);
 	fail_exit("");
 }
-
-
-
-
-// int initServerNet(int port)
-// {
-//     int reuse = 1;
-//     struct sockaddr_in serv_addr;
-//     listensock = socket(AF_INET, SOCK_STREAM, 0);
-//     setsockopt(listensock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-//     /* NOTE: might not need the above if you make sure the client closes first */
-//     if (listensock < 0)
-//         error("ERROR opening socket");
-//     bzero((char *) &serv_addr, sizeof(serv_addr));
-//     serv_addr.sin_family = AF_INET;
-//     serv_addr.sin_addr.s_addr = INADDR_ANY;
-//     serv_addr.sin_port = htons(port);
-//     if (bind(listensock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-//         error("ERROR on binding");
-//     fprintf(stderr, "listening on port %i...\n",port);
-//     listen(listensock,1);
-//     socklen_t clilen;
-//     struct sockaddr_in  cli_addr;
-//     sockfd = accept(listensock, (struct sockaddr *) &cli_addr, &clilen);
-//     if (sockfd < 0)
-//         error("error on accept");
-//     close(listensock);
-//     fprintf(stderr, "connection made, starting session...\n");
-
-//     /* at this point, should be able to send/recv on sockfd */
-
-// 	// Send SYN+1 and ACK in response to SYN
-	
-// 	char buffer[10];
-// 	recv(sockfd, buffer, 3, 0);
-// 	// // if (buffer[0] == 'S') {
-// 	// // 	send(sockfd, "SYN-ACK", 7, 0);
-// 	// // } else {
-// 	// // 	error("Server failed to send SYN-ACK reponse");
-// 	// // }
-// 	send(sockfd, buffer, strlen(buffer), 0);
-	
-
-
-//     return 0;
-// }
-
-
-// static int initClientNet(char* hostname, int port)
-// {
-//     struct sockaddr_in serv_addr;
-//     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-//     struct hostent *server;
-//     if (sockfd < 0)
-//         error("ERROR opening socket");
-//     server = gethostbyname(hostname);
-//     if (server == NULL) {
-//         fprintf(stderr,"ERROR, no such host\n");
-//         exit(0);
-//     }
-//     bzero((char *) &serv_addr, sizeof(serv_addr));
-//     serv_addr.sin_family = AF_INET;
-//     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
-//     serv_addr.sin_port = htons(port);
-//     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
-//         error("ERROR connecting");
-
-//     /* at this point, should be able to send/recv on sockfd */
-
-// 	// 3 way handshake protocol
-
-// 	// Send SYN to host (range 2-256)
-// 	unsigned int SEQ = 123;
-// 	std::string SEQstr = std::to_string(SEQ);
-// 	char* SEQchar = strdup(SEQstr.c_str());
-// 	send(sockfd, SEQchar, SEQstr.length(), 0);
-
-	
-
-// 	// Send ACK once host outputs SYN+1 and ACK
-
-// 	// string buffer2;
-// 	// recv(sockfd, buffer2, 7, 0);
-// 	// if (buffer == "SYN-ACK") {
-// 	// 	send(sockfd, "ACK", 7, 0);
-// 	// } else {
-// 	// 	error("Client failed to send ACK reponse");
-// 	// }
-
-
-// 	char buffer2[10];
-// 	recv(sockfd, buffer2, 3, 0);
-// 	// // if (buffer[0] == 'S') {
-// 	// // 	send(sockfd, "SYN-ACK", 7, 0);
-// 	// // } else {
-// 	// // 	error("Server failed to send SYN-ACK reponse");
-// 	// // }
-// 	//send(sockfd, buffer2, strlen(buffer2), 0);
-// 	send(sockfd, "ACK", 3, 0);
-//     return 0;
-
-// }
 
 int initServerNet(int port)
 {
@@ -213,7 +115,8 @@ int initServerNet(int port)
 		} else {
 			error("Server failed to recieve SYN from client");
 		}
-
+		char buff[10];
+		recv(sockfd, buff, 10, 0);
 		init("params");
 		NEWZ(a);
 		NEWZ(A);
@@ -230,6 +133,17 @@ int initServerNet(int port)
 		recv(sockfd, buf, 1024, 0);
 		mpz_set_str(B_pk, buf, 16);
 			
+		const size_t klen = 256;
+		unsigned char kA[klen];
+		dhFinal(A_sk, A_pk, B_pk, kA, klen);
+		char dhf[512+1];
+		for(size_t i=0; i < 256; i++) {
+			sprintf(&dhf[i*2], "%02x", kA[i]);
+		}
+
+		strncpy(hmac_key, dhf, 256);
+		strncpy(aes_key, dhf + 256, 256);
+
     /* Testing - Works*/
 
     // char buffer[10];
@@ -239,7 +153,6 @@ int initServerNet(int port)
     // } else {
     //     error("Server failed to recieve SYN from client");
     // }
-
     return 0;
 }
 
@@ -683,7 +596,7 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-	size_t maxlen = 256;
+	size_t maxlen = 1024;
 	char msg[maxlen+1];
 	ssize_t nbytes;
 	while (1) {
