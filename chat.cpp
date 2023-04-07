@@ -218,6 +218,17 @@ static int initClientNet(char* hostname, int port)
 		char S[1024];
 		mpz_get_str(S, 16, A);
 		send(sockfd, S, 1024, 0);
+
+		const size_t klen = 256;
+		unsigned char kA[klen];
+		dhFinal(A_sk, A_pk, B_pk, kA, klen);
+		char dhf[512+1];
+		for(size_t i=0; i < 256; i++) {
+			sprintf(&dhf[i*2], "%02x", kA[i]);
+		}
+
+		strncpy(hmac_key, dhf, 256);
+		strncpy(aes_key, dhf + 256, 256);
     /* Testing -- WORKS*/
 
     // send(sockfd, "SYN", 3, 0);
@@ -232,8 +243,6 @@ static int initClientNet(char* hostname, int port)
 
     return 0;
 }
-
-
 
 static int shutdownNetwork()
 {
@@ -300,6 +309,23 @@ static void msg_win_redisplay(bool batch, const string& newmsg="", const string&
 	}
 }
 
+char* hmac(char* msg)
+{	
+	char hmackey[256+1];
+	strcpy(hmackey, hmac_key);
+	unsigned char mac[64]; 
+	memset(mac,0,64);
+	char* message = msg;
+	HMAC(EVP_sha512(),hmackey,strlen(hmackey),(unsigned char*)message,
+			strlen(message),mac,0);
+	char* temp = (char*) malloc(129);
+
+	for (size_t i = 0; i < 64; i++) {
+		sprintf(&temp[i*2],"%02x",mac[i]);
+	}
+	return strdup(temp);
+}
+
 static void msg_typed(char *line)
 {
 	string mymsg;
@@ -314,10 +340,17 @@ static void msg_typed(char *line)
 			mymsg = string(line);
 			transcript.push_back("me: " + mymsg);
 			ssize_t nbytes;
-
-			if ((nbytes = send(sockfd,line,mymsg.length(),0)) == -1)
+			
+			char* hmac_str = hmac(line);
+			char* buf = (char*)malloc(strlen(hmac_str) + strlen(line) + 1);
+			strcpy(buf, hmac_str);
+			strcat(buf, line);
+			if ((nbytes = send(sockfd,buf,strlen(buf) , 0)) == -1)
 				error("send failed");
+			free(hmac_str);
+			free(buf);
 		}
+		
 		pthread_mutex_lock(&qmx);
 		mq.push_back({false,mymsg,"me",msg_win});
 		pthread_cond_signal(&qcv);
@@ -596,7 +629,7 @@ void* cursesthread(void* pData)
 
 void* recvMsg(void*)
 {
-	size_t maxlen = 1024;
+	size_t maxlen = 512;
 	char msg[maxlen+1];
 	ssize_t nbytes;
 	while (1) {
@@ -608,10 +641,30 @@ void* recvMsg(void*)
 			should_exit = true;
 			return 0;
 		}
-		pthread_mutex_lock(&qmx);
-		mq.push_back({false,msg,"Incoming",msg_win});
-		pthread_cond_signal(&qcv);
-		pthread_mutex_unlock(&qmx);
+
+		size_t msg_size = nbytes - 128;
+
+		char B_hmac_str[129];
+		char message[msg_size+1];
+		memcpy(B_hmac_str, msg, 128);
+		B_hmac_str[128] = '\0';
+		strncpy(message, msg + 128, msg_size);
+		message[msg_size] = '\0';
+
+		char* A_hmac_str = hmac(message);
+		
+		if(strcmp(A_hmac_str, B_hmac_str) == 0) {
+			pthread_mutex_lock(&qmx);
+			mq.push_back({false,message,"Incoming",msg_win});
+			pthread_cond_signal(&qcv);
+			pthread_mutex_unlock(&qmx);
+			} 
+		else {
+			pthread_mutex_lock(&qmx);
+			mq.push_back({false,"HMAC does not match!!","System",msg_win});
+			pthread_cond_signal(&qcv);
+			pthread_mutex_unlock(&qmx);
+			}
 	}
 	return 0;
 }
