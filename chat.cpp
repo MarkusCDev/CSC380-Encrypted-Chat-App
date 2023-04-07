@@ -646,7 +646,7 @@ void* recvMsg(void*)
 
 		char B_hmac_str[129];
 		char message[msg_size+1];
-		memcpy(B_hmac_str, msg, 128);
+		strncpy(B_hmac_str, msg, 128);
 		B_hmac_str[128] = '\0';
 		strncpy(message, msg + 128, msg_size);
 		message[msg_size] = '\0';
