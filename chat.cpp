@@ -214,6 +214,13 @@ int initServerNet(int port)
 			error("Server failed to recieve SYN from client");
 		}
 
+		/* Check if client sent ack */
+		char bufferFACK[4];
+		recv(sockfd, bufferFACK, 4, 0);
+		
+
+
+1		
 		init("params");
 		NEWZ(a);
 		NEWZ(A);
@@ -229,7 +236,15 @@ int initServerNet(int port)
 		char buf[1024];
 		recv(sockfd, buf, 1024, 0);
 		mpz_set_str(B_pk, buf, 16);
-			
+
+		const size_t klen = 512;
+		unsigned char kA[klen];
+		dhFinal(A_sk, A_pk, B_pk, kA, kA.length());
+
+		
+		
+
+
     /* Testing - Works*/
 
     // char buffer[10];
@@ -695,8 +710,14 @@ void* recvMsg(void*)
 			should_exit = true;
 			return 0;
 		}
+		char S0[1024];
+mpz_get_str(S0, 16, A_pk);
+char S1[1024];
+mpz_get_str(S1, 16, B_pk);
 		pthread_mutex_lock(&qmx);
 		mq.push_back({false,msg,"Incoming",msg_win});
+		//mq.push_back({false,S0,"A",msg_win});
+        //mq.push_back({false,S1,"B",msg_win});
 		pthread_cond_signal(&qcv);
 		pthread_mutex_unlock(&qmx);
 	}

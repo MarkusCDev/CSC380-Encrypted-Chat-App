@@ -9,6 +9,9 @@
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
 
+
+
+
 /* demonstrates hashing (SHA family) */
 void sha_example()
 {
@@ -90,50 +93,98 @@ void ctr_example()
 	 * decrypting needs to know the IV) */
 }
 
-/* demonstrate RSA keygen,enc,dec */
-void rsa_example()
+
+
+size_t ctlen;
+int nWritten;
+
+char* ctr_encrypt(char* msg)
 {
-	/* first generate a key */
-	RSA* keys = RSA_new();
-	if (!keys) exit(1);
-	BIGNUM* e = BN_new();
-	if (!e) exit(1);
-	BN_set_word(e,RSA_F4); /* e = 65537  */
-	/* NOTE: if you have an old enough openssl library, you might
-	 * have to setup the random number generator before this call: */
-	int r = RSA_generate_key_ex(keys,2048,e,NULL);
-	if (r != 1) exit(1);
-	PEM_write_RSA_PUBKEY(stdout,keys);
-	/* NOTE: you could fill in the last 5 parameters if you wanted to
-	 * password protect the private key. */
-	PEM_write_RSAPrivateKey(stdout,keys,NULL,NULL,0,NULL,NULL);
-	char* message = "this is a test message :D";
-	size_t len = strlen(message);
-	unsigned char* ct = malloc(RSA_size(keys));
-	int ctlen = RSA_public_encrypt(len+1 /* include null char */, (unsigned char*)message,
-			ct, keys, RSA_PKCS1_OAEP_PADDING);
-	if (ctlen == -1) exit(1);
-	/* print RSA ciphertext */
-	printf("RSA ciphertext:\n");
-	for (int i = 0; i < ctlen; i++) printf("%02x",ct[i]);
-	printf("\n");
-	/* now try to decrypt */
-	char* pt = malloc(ctlen);
-	size_t ptlen = RSA_private_decrypt(ctlen,ct,(unsigned char*)pt,keys,RSA_PKCS1_OAEP_PADDING);
-	if (ptlen == -1) exit(1);
-	printf("RSA decrypted plaintext:\n%s\n",pt);
+	unsigned char key[32];
+	size_t i;
+	/* setup dummy (non-random) key and IV */
+	for (i = 0; i < 32; i++) key[i] = i;
+	unsigned char iv[16];
+	for (i = 0; i < 16; i++) iv[i] = i;
+
+    unsigned char ct[512];
+    // so you can see which bytes were written: 
+    memset(ct,0,512);
+    size_t len = strlen(msg);
+    // encrypt: 
+
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (1!=EVP_EncryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
+        ERR_print_errors_fp(stderr);
+    nWritten; // stores number of written bytes (size of ciphertext) 
+    if (1!=EVP_EncryptUpdate(ctx,ct,&nWritten,(unsigned char*)msg,len))
+        ERR_print_errors_fp(stderr);
+    EVP_CIPHER_CTX_free(ctx);
+    ctlen = nWritten; // maybe change
+    char cipher[512];
+    for (size_t i = 0; i < ctlen; i++) {
+        sprintf(&cipher[i*2],"%02x",ct[i]);
+    }
+    return strdup(cipher);
 }
+
+
+char* ctr_decrypt(char** ct) 
+{
+	unsigned char pt[512];
+	unsigned char key[32];
+	size_t i;
+	/* setup dummy (non-random) key and IV */
+	for (i = 0; i < 32; i++) key[i] = i;
+	unsigned char iv[16];
+	for (i = 0; i < 16; i++) iv[i] = i;
+
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	memset(pt,0,512);
+	ctx = EVP_CIPHER_CTX_new();
+	if (1!=EVP_DecryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
+		ERR_print_errors_fp(stderr);
+	if (1!=EVP_DecryptUpdate(ctx,pt,&nWritten,ct,ctlen))
+		ERR_print_errors_fp(stderr);
+
+	return strdup(pt);
+
+}
+
+
+
+
+
+
+
+
 
 /* TODO: add signature example  */
 
 int main()
 {
-	rsa_example();
-	printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+	// rsa_example();
+	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	ctr_example();
 	printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
-	sha_example();
-	printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
-	hmac_example();
+	// sha_example();
+	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+	// hmac_example();
+	printf("~~~~~~~~TESTING~~~~~~~~~\n");
+	char* msg = "this is a test message :D";
+	printf(msg);
+	printf("\n");
+	
+	char* ct = ctr_encrypt(msg);
+	printf("bytes:\n%s\n", ct);
+
+	char* pt = ctr_decrypt(&ct);
+	printf("secret:\n%s\n", pt);
+
+	// char* dec = decrypt(enc);
+	// printf(dec);
+
+
+
 	return 0;
 }
