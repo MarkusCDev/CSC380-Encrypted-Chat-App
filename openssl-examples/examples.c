@@ -1,4 +1,3 @@
-/* examples of using various crypto utilities from openssl. */
 #include <stdio.h>
 #include <string.h>
 #include <openssl/aes.h>
@@ -8,6 +7,8 @@
 #include <openssl/hmac.h>
 #include <openssl/pem.h>
 #include <openssl/rsa.h>
+
+
 
 
 /* demonstrates hashing (SHA family) */
@@ -58,7 +59,7 @@ void ctr_example()
 	/* so you can see which bytes were written: */
 	memset(ct,0,512);
 	memset(pt,0,512);
-	char* message = "this is a test message.";
+	char* message = "this is a test message this is a test message";
 	size_t len = strlen(message);
 	/* encrypt: */
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -69,7 +70,6 @@ void ctr_example()
 		ERR_print_errors_fp(stderr);
 	EVP_CIPHER_CTX_free(ctx);
 	size_t ctlen = nWritten;
-	//printf("actual int: %u \n", ct);
 	printf("ciphertext of length %i:\n",nWritten);
 	for (i = 0; i < ctlen; i++) {
 		printf("%02x",ct[i]);
@@ -93,9 +93,12 @@ void ctr_example()
 }
 
 
-unsigned char* encrypt(char* message, unsigned char* key, unsigned char* iv)
+
+
+unsigned char* ctr_encrypt(char* message, unsigned char* key, unsigned char* iv)
 {
-    unsigned char* ct = malloc(sizeof(unsigned char)*512);
+    unsigned char* ct = (unsigned char*) malloc(sizeof(unsigned char)*512);
+	//char* ct = malloc(sizeof(char)*512);
 	int nWritten;
     size_t len = strlen(message);
 	
@@ -107,15 +110,16 @@ unsigned char* encrypt(char* message, unsigned char* key, unsigned char* iv)
         ERR_print_errors_fp(stderr);
     EVP_CIPHER_CTX_free(ctx);
 
+
 	return ct;
 }
 
-
-char* decrypt(unsigned char* ct, unsigned char* key, unsigned char* iv)
+char* ctr_decrypt(unsigned char* ct, unsigned char* key, unsigned char* iv)
 {
-    char* pt = malloc(sizeof(char)*512);
+	char* pt = (char*) malloc(sizeof(char)*512);
+    //char* pt = malloc(sizeof(char)*512);
 	int nWritten;
-	size_t ctlen = strlen(ct);
+	size_t ctlen = strlen((char*)ct);
 
     EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (1!=EVP_DecryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
@@ -131,36 +135,41 @@ char* decrypt(unsigned char* ct, unsigned char* key, unsigned char* iv)
 }
 
 
+
+/* TODO: add signature example  */
+
 int main()
 {
 	// rsa_example();
 	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	ctr_example();
-	//printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+	printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	// sha_example();
 	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	// hmac_example();
 	printf("~~~~~~~~TESTING~~~~~~~~~\n");
+	char* msg = "this is a test message. this is a test message";
+	printf(msg);
+	printf("\n");
 
-	//message
-	char* message = "this is a test message.";
-	// //key
+
 	unsigned char key[32];
-	 	for (size_t i = 0; i < 32; i++) key[i] = i;
-	 //iv
-	 unsigned char iv[16];
-	 	for (size_t i = 0; i < 16; i++) iv[i] = i;
+	size_t i;
+	/* setup dummy (non-random) key and IV */
+	for (i = 0; i < 32; i++) key[i] = i;
+	unsigned char iv[16];
+	for (i = 0; i < 16; i++) iv[i] = i;
+
 
 	
-	unsigned char* ct = encrypt(message, key, iv);
-	char* pt = decrypt(ct, key, iv);
-
-	printf("Original message: %s\n", message);
-	printf("Ciphertext: ");
-	for (size_t i = 0; i < strlen(ct); i++) {
-    	printf("%02x", ct[i]);
+	unsigned char* ct = ctr_encrypt(msg, key, iv);
+	for (i = 0; i < strlen(msg); i++) {
+		printf("%02x",ct[i]);
 	}
-	printf("\nDecrypted message: %s\n", pt);
+	printf("\n");
+
+	char* pt = ctr_decrypt(ct, key, iv);
+	printf("secret:\n%s\n", pt);
 
 
 	return 0;
