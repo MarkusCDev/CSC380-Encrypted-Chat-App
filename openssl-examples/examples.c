@@ -10,8 +10,6 @@
 #include <openssl/rsa.h>
 
 
-
-
 /* demonstrates hashing (SHA family) */
 void sha_example()
 {
@@ -60,7 +58,7 @@ void ctr_example()
 	/* so you can see which bytes were written: */
 	memset(ct,0,512);
 	memset(pt,0,512);
-	char* message = "this is a test message :D";
+	char* message = "this is a test message.";
 	size_t len = strlen(message);
 	/* encrypt: */
 	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
@@ -71,6 +69,7 @@ void ctr_example()
 		ERR_print_errors_fp(stderr);
 	EVP_CIPHER_CTX_free(ctx);
 	size_t ctlen = nWritten;
+	//printf("actual int: %u \n", ct);
 	printf("ciphertext of length %i:\n",nWritten);
 	for (i = 0; i < ctlen; i++) {
 		printf("%02x",ct[i]);
@@ -94,96 +93,74 @@ void ctr_example()
 }
 
 
-
-size_t ctlen;
-int nWritten;
-
-char* ctr_encrypt(char* msg)
+unsigned char* encrypt(char* message, unsigned char* key, unsigned char* iv)
 {
-	unsigned char key[32];
-	size_t i;
-	/* setup dummy (non-random) key and IV */
-	for (i = 0; i < 32; i++) key[i] = i;
-	unsigned char iv[16];
-	for (i = 0; i < 16; i++) iv[i] = i;
-
-    unsigned char ct[512];
-    // so you can see which bytes were written: 
-    memset(ct,0,512);
-    size_t len = strlen(msg);
-    // encrypt: 
-
-    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    unsigned char* ct = malloc(sizeof(unsigned char)*512);
+	int nWritten;
+    size_t len = strlen(message);
+	
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
     if (1!=EVP_EncryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
         ERR_print_errors_fp(stderr);
-    nWritten; // stores number of written bytes (size of ciphertext) 
-    if (1!=EVP_EncryptUpdate(ctx,ct,&nWritten,(unsigned char*)msg,len))
+
+    if (1!=EVP_EncryptUpdate(ctx,ct,&nWritten,(unsigned char*)message,len))
         ERR_print_errors_fp(stderr);
     EVP_CIPHER_CTX_free(ctx);
-    ctlen = nWritten; // maybe change
-    char cipher[512];
-    for (size_t i = 0; i < ctlen; i++) {
-        sprintf(&cipher[i*2],"%02x",ct[i]);
-    }
-    return strdup(cipher);
+
+	return ct;
 }
 
 
-char* ctr_decrypt(char** ct) 
+char* decrypt(unsigned char* ct, unsigned char* key, unsigned char* iv)
 {
-	unsigned char pt[512];
-	unsigned char key[32];
-	size_t i;
-	/* setup dummy (non-random) key and IV */
-	for (i = 0; i < 32; i++) key[i] = i;
-	unsigned char iv[16];
-	for (i = 0; i < 16; i++) iv[i] = i;
+    char* pt = malloc(sizeof(char)*512);
+	int nWritten;
+	size_t ctlen = strlen(ct);
 
-	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
-	memset(pt,0,512);
-	ctx = EVP_CIPHER_CTX_new();
-	if (1!=EVP_DecryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
-		ERR_print_errors_fp(stderr);
-	if (1!=EVP_DecryptUpdate(ctx,pt,&nWritten,ct,ctlen))
-		ERR_print_errors_fp(stderr);
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (1!=EVP_DecryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
+        ERR_print_errors_fp(stderr);
+    
+    if (1!=EVP_DecryptUpdate(ctx,(unsigned char*)pt,&nWritten,ct,ctlen))
+        ERR_print_errors_fp(stderr);
 
-	return strdup(pt);
-
+    EVP_CIPHER_CTX_free(ctx);
+    
+	return pt;
+	
 }
 
-
-
-
-
-
-
-
-
-/* TODO: add signature example  */
 
 int main()
 {
 	// rsa_example();
 	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	ctr_example();
-	printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
+	//printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	// sha_example();
 	// printf("~~~~~~~~~~~~~~~~~~~~~~~\n");
 	// hmac_example();
 	printf("~~~~~~~~TESTING~~~~~~~~~\n");
-	char* msg = "this is a test message :D";
-	printf(msg);
-	printf("\n");
+
+	//message
+	char* message = "this is a test message.";
+	// //key
+	unsigned char key[32];
+	 	for (size_t i = 0; i < 32; i++) key[i] = i;
+	 //iv
+	 unsigned char iv[16];
+	 	for (size_t i = 0; i < 16; i++) iv[i] = i;
+
 	
-	char* ct = ctr_encrypt(msg);
-	printf("bytes:\n%s\n", ct);
+	unsigned char* ct = encrypt(message, key, iv);
+	char* pt = decrypt(ct, key, iv);
 
-	char* pt = ctr_decrypt(&ct);
-	printf("secret:\n%s\n", pt);
-
-	// char* dec = decrypt(enc);
-	// printf(dec);
-
+	printf("Original message: %s\n", message);
+	printf("Ciphertext: ");
+	for (size_t i = 0; i < strlen(ct); i++) {
+    	printf("%02x", ct[i]);
+	}
+	printf("\nDecrypted message: %s\n", pt);
 
 
 	return 0;

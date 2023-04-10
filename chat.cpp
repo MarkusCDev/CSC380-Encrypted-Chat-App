@@ -218,9 +218,7 @@ int initServerNet(int port)
 		char bufferFACK[4];
 		recv(sockfd, bufferFACK, 4, 0);
 		
-
-
-1		
+	
 		init("params");
 		NEWZ(a);
 		NEWZ(A);
@@ -239,7 +237,7 @@ int initServerNet(int port)
 
 		const size_t klen = 512;
 		unsigned char kA[klen];
-		dhFinal(A_sk, A_pk, B_pk, kA, kA.length());
+		dhFinal(A_sk, A_pk, B_pk, kA, klen);
 
 		
 		
@@ -320,6 +318,9 @@ static int initClientNet(char* hostname, int port)
 		char S[1024];
 		mpz_get_str(S, 16, A);
 		send(sockfd, S, 1024, 0);
+
+
+		
     /* Testing -- WORKS*/
 
     // send(sockfd, "SYN", 3, 0);
