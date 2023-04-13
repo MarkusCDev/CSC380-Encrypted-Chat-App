@@ -403,16 +403,21 @@ static void msg_typed(char *line)
 
 			mess = buf;
 
+			int bufsize = strlen((char*) mess);
+
 			//cipher = ctr_encrypt((char*)line, newkey, iv);
 			cipher = ctr_encrypt(buf, newkey, iv);
 		
-
+			//int realsum = 128 + strlen(line);
 		
-			if ((nbytes = send(sockfd,cipher,strlen((char*)cipher), 0)) == -1)
+			// if ((nbytes = send(sockfd,cipher, strlen((char *)cipher), 0)) == -1)
+			// 	error("send failed");
+			if ((nbytes = send(sockfd,cipher, bufsize, 0)) == -1)
 				error("send failed");
-			free(hmac_str);
-			free(buf);
-			free(cipher);
+			//free(hmac_str);
+			//free(buf);
+			//free(cipher);
+			//realsum = 0;
 
 		}
 		int size = strlen(line);
@@ -421,6 +426,9 @@ static void msg_typed(char *line)
 		int sciph = strlen((char*)cipher);
 		string sciphs = std::to_string(sciph);
 
+		int messl = strlen((char*) mess);
+		string messtr = std::to_string(messl);
+
 
 		pthread_mutex_lock(&qmx);
 		mq.push_back({false,mymsg,"me",msg_win});
@@ -428,6 +436,7 @@ static void msg_typed(char *line)
 		mq.push_back({false,sizec,"me",msg_win});
 		mq.push_back({false,sciphs,"me",msg_win});
 		mq.push_back({false,mess,"me",msg_win});
+		mq.push_back({false,messtr,"me",msg_win});
 		pthread_cond_signal(&qcv);
 		pthread_mutex_unlock(&qmx);
 	}
@@ -718,11 +727,11 @@ void* recvMsg(void*)
 		}
 
 		
-
+		
 		int smsg = strlen((char* )msg);
 		string smsgs = std::to_string(smsg);
 
-		unsigned char* plaintxt = ctr_decrypt((unsigned char*)msg, newkey, iv, smsg);
+		unsigned char* plaintxt = ctr_decrypt((unsigned char*)msg, newkey, iv, nbytes);
 
 		int size = strlen((char*)plaintxt);
 		string sizec = std::to_string(size);
