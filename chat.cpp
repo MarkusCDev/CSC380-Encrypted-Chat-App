@@ -22,9 +22,26 @@ using std::deque;
 #include <utility>
 using std::pair;
 #include "dh.h"
-
 #include <random>
 #include <cstring>
+#include <openssl/aes.h>
+#include <openssl/err.h>
+#include <openssl/pem.h>
+#include <openssl/rsa.h>
+#include <ctime>
+
+
+// Public, Secret key
+mpz_t A_pk;
+mpz_t B_pk;
+mpz_t A_sk;
+// DHF
+char hmac_key[256+1];
+unsigned char aes_key[256+1];
+// IV for AES generated via SYN request
+unsigned char iv_val[16+1];
+
+
 
 static pthread_t trecv;     /* wait for incoming messagess and post to queue */
 void* recvMsg(void*);       /* for trecv */
@@ -43,6 +60,25 @@ static pthread_mutex_t qmx = PTHREAD_MUTEX_INITIALIZER;
 static pthread_cond_t qcv = PTHREAD_COND_INITIALIZER;
 
 /* XXX different colors for different senders */
+
+// generate iv from SYN request 
+unsigned char* ivgen(unsigned long input) {
+    std::mt19937_64 rng(input); //mersenne twister random gen
+    std::uniform_int_distribution<int> dist(0, 35); 
+    unsigned char* randomChar = new unsigned char[17];
+
+    for (int i = 0; i < 16; i++) {
+        int randomNum = dist(rng);
+        if (randomNum < 10) {
+            randomChar[i] = '0' + randomNum;
+        } else {
+            randomChar[i] = 'a' + randomNum - 10; 
+        }
+    }
+
+    return randomChar;
+}
+
 
 /* record chat history as deque of strings: */
 static deque<string> transcript;
@@ -63,108 +99,6 @@ int listensock, sockfd;
 	perror(msg);
 	fail_exit("");
 }
-
-
-
-
-// int initServerNet(int port)
-// {
-//     int reuse = 1;
-//     struct sockaddr_in serv_addr;
-//     listensock = socket(AF_INET, SOCK_STREAM, 0);
-//     setsockopt(listensock, SOL_SOCKET, SO_REUSEADDR, &reuse, sizeof(reuse));
-//     /* NOTE: might not need the above if you make sure the client closes first */
-//     if (listensock < 0)
-//         error("ERROR opening socket");
-//     bzero((char *) &serv_addr, sizeof(serv_addr));
-//     serv_addr.sin_family = AF_INET;
-//     serv_addr.sin_addr.s_addr = INADDR_ANY;
-//     serv_addr.sin_port = htons(port);
-//     if (bind(listensock, (struct sockaddr *) &serv_addr, sizeof(serv_addr)) < 0)
-//         error("ERROR on binding");
-//     fprintf(stderr, "listening on port %i...\n",port);
-//     listen(listensock,1);
-//     socklen_t clilen;
-//     struct sockaddr_in  cli_addr;
-//     sockfd = accept(listensock, (struct sockaddr *) &cli_addr, &clilen);
-//     if (sockfd < 0)
-//         error("error on accept");
-//     close(listensock);
-//     fprintf(stderr, "connection made, starting session...\n");
-
-//     /* at this point, should be able to send/recv on sockfd */
-
-// 	// Send SYN+1 and ACK in response to SYN
-	
-// 	char buffer[10];
-// 	recv(sockfd, buffer, 3, 0);
-// 	// // if (buffer[0] == 'S') {
-// 	// // 	send(sockfd, "SYN-ACK", 7, 0);
-// 	// // } else {
-// 	// // 	error("Server failed to send SYN-ACK reponse");
-// 	// // }
-// 	send(sockfd, buffer, strlen(buffer), 0);
-	
-
-
-//     return 0;
-// }
-
-
-// static int initClientNet(char* hostname, int port)
-// {
-//     struct sockaddr_in serv_addr;
-//     sockfd = socket(AF_INET, SOCK_STREAM, 0);
-//     struct hostent *server;
-//     if (sockfd < 0)
-//         error("ERROR opening socket");
-//     server = gethostbyname(hostname);
-//     if (server == NULL) {
-//         fprintf(stderr,"ERROR, no such host\n");
-//         exit(0);
-//     }
-//     bzero((char *) &serv_addr, sizeof(serv_addr));
-//     serv_addr.sin_family = AF_INET;
-//     memcpy(&serv_addr.sin_addr.s_addr,server->h_addr,server->h_length);
-//     serv_addr.sin_port = htons(port);
-//     if (connect(sockfd,(struct sockaddr *) &serv_addr,sizeof(serv_addr)) < 0)
-//         error("ERROR connecting");
-
-//     /* at this point, should be able to send/recv on sockfd */
-
-// 	// 3 way handshake protocol
-
-// 	// Send SYN to host (range 2-256)
-// 	unsigned int SEQ = 123;
-// 	std::string SEQstr = std::to_string(SEQ);
-// 	char* SEQchar = strdup(SEQstr.c_str());
-// 	send(sockfd, SEQchar, SEQstr.length(), 0);
-
-	
-
-// 	// Send ACK once host outputs SYN+1 and ACK
-
-// 	// string buffer2;
-// 	// recv(sockfd, buffer2, 7, 0);
-// 	// if (buffer == "SYN-ACK") {
-// 	// 	send(sockfd, "ACK", 7, 0);
-// 	// } else {
-// 	// 	error("Client failed to send ACK reponse");
-// 	// }
-
-
-// 	char buffer2[10];
-// 	recv(sockfd, buffer2, 3, 0);
-// 	// // if (buffer[0] == 'S') {
-// 	// // 	send(sockfd, "SYN-ACK", 7, 0);
-// 	// // } else {
-// 	// // 	error("Server failed to send SYN-ACK reponse");
-// 	// // }
-// 	//send(sockfd, buffer2, strlen(buffer2), 0);
-// 	send(sockfd, "ACK", 3, 0);
-//     return 0;
-
-// }
 
 int initServerNet(int port)
 {
@@ -192,32 +126,67 @@ int initServerNet(int port)
     fprintf(stderr, "connection made, starting session...\n");
     /* at this point, should be able to send/recv on sockfd */
 
-	// ----- Sending SYN+1,ACK -----
+	/* ----------Handshake setup----------- */
+
+	//----- Sending SYN+1,ACK -----
 
 		/* Server sends SYN+1, ACK back to Client when SYN is recieved*/
 		char bufferSYN[11];
 		recv(sockfd, bufferSYN, 10, 0);
 		int bufferSYNp1 = atoi(bufferSYN) + 1;
-		string bufferSYNp1_str = std::to_string(bufferSYNp1);
+		string bufferSYNp1_str = std::to_string(bufferSYNp1) + "ACK";
 		const char *bufferSYNp1_char = bufferSYNp1_str.c_str();
 
-		// need to change to confirm original SYN
-		if (bufferSYNp1 > 0) {
+		/* Generate the same iv from ISN seed passed over*/
+		int bufferSYNiv = atoi(bufferSYN);
+		unsigned char* iv_temp = ivgen(bufferSYNiv);
+		memcpy(iv_val, iv_temp, 16);
+
+		// SYN recived should be within 32bit unsigned range
+		if (bufferSYNp1 >= 0 && bufferSYNp1 <= 4294967295)  {
 			// send(sockfd, bufferSYN, 11, 0);
 			send(sockfd, bufferSYNp1_char, bufferSYNp1_str.length(), 0);
 		} else {
 			error("Server failed to recieve SYN from client");
 		}
 
-    /* Testing - Works*/
+		char buff[10];
+		recv(sockfd, buff, 10, 0);
 
-    // char buffer[10];
-    // recv(sockfd, buffer, 3, 0);
-    // if (buffer[0] == 'S') {
-    //     send(sockfd, "SYN-ACK", 7, 0);
-    // } else {
-    //     error("Server failed to recieve SYN from client");
-    // }
+	/* ----------DiffieHellman Setup----------- */
+
+		//generate private & public keys
+		init("params");
+		NEWZ(a);
+		NEWZ(A);
+		dhGen(a, A);
+
+		//send public key
+		char S[1024];	
+		mpz_get_str(S, 16, A);
+		send(sockfd, S, 1024, 0);
+
+		mpz_set(A_pk, A);
+		mpz_set(A_sk, a);
+
+		//reieve incoming user's public key
+		char buf[1024];
+		recv(sockfd, buf, 1024, 0);
+		mpz_set_str(B_pk, buf, 16);
+			
+		//shared key is calcualted 
+		const size_t klen = 256;
+		unsigned char kA[klen];
+		dhFinal(A_sk, A_pk, B_pk, kA, klen);
+		char dhf[512+1];
+		for(size_t i=0; i < 256; i++) {
+			sprintf(&dhf[i*2], "%02x", kA[i]);
+		}
+
+		//split 512 DHF for two 256 keys (AES & HMAC)
+		memcpy(hmac_key, dhf, 256);
+		memcpy(aes_key, dhf + 256, 256);
+
 
     return 0;
 }
@@ -243,14 +212,24 @@ static int initClientNet(char* hostname, int port)
         error("ERROR connecting");
     /* at this point, should be able to send/recv on sockfd */
 
+	/* ----------Handshake setup----------- */
+
 	// ----- Sending SYN -----
 
-		/* ISN Generation - 32 bit max*/
-		unsigned long ISN = rand() % 4294967295 + 1;
+		/* ISN Generation - 32 bit unsigned max*/
+		srand(time(0));
+		unsigned long ISN = rand() % 4294967294 + 0;
+
+
+		/* ISN is used as seed to generate IV for AES*/
+		unsigned char* iv_temp = ivgen(ISN);
+		memcpy(iv_val, iv_temp, 16);
 
 		/* Foramted Initial Sequence Number for sending */
 		string ISN_str = std::to_string(ISN);
 		char const *ISN_char = ISN_str.c_str();
+
+		//memcpy(checking, ISN_char, ISN_str.length());
 
 		/* Client sends ISN as SYN request*/
 		send(sockfd, ISN_char, ISN_str.length(), 0);
@@ -258,34 +237,61 @@ static int initClientNet(char* hostname, int port)
 	// ----- Sending ACK -----
 
 		/* Client sends ACK when SYN+1, ACK is recieved back */
-		char bufferACK[11]; // size char to recieve the SYN+1, ACK from the server
-		recv(sockfd, bufferACK, 11, 0);
-		unsigned long bufferACK_int = atoi(bufferACK) - 1; //convert char arr to int
-		
+		char bufferACK[14]; // size char to recieve the SYN+1, ACK from the server
+		recv(sockfd, bufferACK, 14, 0);
+		string bfA_str(bufferACK);
 
+		
+		size_t index = bfA_str.find("ACK");
+		while (index != std::string::npos) {
+			bfA_str.erase(index,3); // removes "ACK" from string
+			index = bfA_str.find("ACK", index);
+		}
+
+		unsigned long bufferACK_int = stoi(bfA_str) - 1; //convert str to int
+		
 		if(bufferACK_int == ISN) {
 			send(sockfd, "ACK", 3, 0);
 		} else {
 			error("Client failed to recieve SYN+1 ACK from server");
 		}
 
+	/* ----------DiffieHellman Setup----------- */
 
-    /* Testing -- WORKS*/
+		//generate private & public keys
+		init("params");
+		NEWZ(a);
+		NEWZ(A);
+		dhGen(a, A);
 
-    // send(sockfd, "SYN", 3, 0);
+		//recieve incoming user's public key
+		char buf[1024];
+		recv(sockfd, buf, 1024, 0);
 
-    // char ackbuf[10];
-    // recv(sockfd, ackbuf, 7, 0);
-    // if (ackbuf[3] == '-') {
-    //     send(sockfd, "ACK", 3, 0);
-    // } else {
-    //     error("Client failed to recieve SYN-ACK");
-    // }
+		mpz_set(A_pk, A);
+		mpz_set(A_sk, a);
+		mpz_set_str(B_pk, buf, 16);
+
+		//send public key
+		char S[1024];
+		mpz_get_str(S, 16, A);
+		send(sockfd, S, 1024, 0);
+
+		//shared key is calcualted
+		const size_t klen = 256;
+		unsigned char kA[klen];
+		dhFinal(A_sk, A_pk, B_pk, kA, klen);
+		char dhf[512+1];
+		for(size_t i=0; i < 256; i++) {
+			sprintf(&dhf[i*2], "%02x", kA[i]);
+		}
+
+		//split 512 DHF for two 256 key (AES & HMAC)
+		memcpy(hmac_key, dhf, 256);
+		memcpy(aes_key, dhf + 256, 256);
 
     return 0;
 }
-
-
 
 static int shutdownNetwork()
 {
@@ -352,9 +358,63 @@ static void msg_win_redisplay(bool batch, const string& newmsg="", const string&
 	}
 }
 
+char* hmac(char* msg)
+{	
+	char hmackey[256+1];
+	strcpy(hmackey, hmac_key);
+	unsigned char mac[64]; 
+	memset(mac,0,64);
+	char* message = msg;
+	HMAC(EVP_sha512(),hmackey,strlen(hmackey),(unsigned char*)message,
+			strlen(message),mac,0);
+	char* temp = (char*) malloc(129);
+
+	for (size_t i = 0; i < 64; i++) {
+		sprintf(&temp[i*2],"%02x",mac[i]);
+	}
+	return strdup(temp);
+}
+
+unsigned char* ctr_encrypt(char* message, unsigned char* key, unsigned char* iv){
+    unsigned char* ct = (unsigned char*) malloc(512);
+    memset(ct, 0, 512);
+    size_t len = strlen(message);
+
+    EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+    if (1 != EVP_EncryptInit_ex(ctx, EVP_aes_256_ctr(), 0, key, iv))
+        ERR_print_errors_fp(stderr);
+    int nWritten;
+    if (1 != EVP_EncryptUpdate(ctx, ct, &nWritten, (unsigned char*) message, len))
+        ERR_print_errors_fp(stderr);
+    EVP_CIPHER_CTX_free(ctx);
+
+    return ct;
+}
+
+unsigned char* ctr_decrypt(unsigned char* ct, unsigned char* key, unsigned char* iv, size_t length){
+	
+	unsigned char* pt = (unsigned char*) malloc(512);
+	memset(pt, 0, 512);
+	size_t ctlen = length;
+
+
+	int nWritten;
+	EVP_CIPHER_CTX* ctx = EVP_CIPHER_CTX_new();
+	if (1!=EVP_DecryptInit_ex(ctx,EVP_aes_256_ctr(),0,key,iv))
+		ERR_print_errors_fp(stderr);
+	if (1!=EVP_DecryptUpdate(ctx,pt,&nWritten,ct,ctlen))
+		ERR_print_errors_fp(stderr);
+	
+	
+	return pt;
+}
+
+
+
 static void msg_typed(char *line)
 {
 	string mymsg;
+	unsigned char* cipher;
 	if (!line) {
 		// Ctrl-D pressed on empty line
 		should_exit = true;
@@ -366,27 +426,17 @@ static void msg_typed(char *line)
 			mymsg = string(line);
 			transcript.push_back("me: " + mymsg);
 			ssize_t nbytes;
+			
+			char* hmac_str = hmac(line);
+			char* buf = (char*)malloc(strlen(hmac_str) + strlen(line) + 1);
+			strcpy(buf, hmac_str);
+			strcat(buf, line);
 
-			init("params");
-			NEWZ(a);
-			NEWZ(A);
-			NEWZ(B);
-			dhGen(a,A);
+			int bufsize = strlen(buf);
 
-			const size_t klen = 128;
-			unsigned char kA[klen];
-			dhFinal(a, A, B, kA, klen);
+			cipher = ctr_encrypt(buf, aes_key, iv_val);
 
-			char sender[256];
-			for (size_t i = 0; i < klen; i++) {
-				sprintf(&sender[i*2],"%02x", kA[i]);
-			}
-
-			strcat(sender, line);
-
-			char* s = sender;
-
-			if ((nbytes = send(sockfd,s,mymsg.length(),0)) == -1)
+			if ((nbytes = send(sockfd,cipher, bufsize, 0)) == -1)
 				error("send failed");
 		}
 		pthread_mutex_lock(&qmx);
@@ -679,10 +729,34 @@ void* recvMsg(void*)
 			should_exit = true;
 			return 0;
 		}
-		pthread_mutex_lock(&qmx);
-		mq.push_back({false,msg,"Incoming",msg_win});
-		pthread_cond_signal(&qcv);
-		pthread_mutex_unlock(&qmx);
+		
+		unsigned char* plaintxt = ctr_decrypt((unsigned char*)msg, aes_key, iv_val, nbytes);
+
+		size_t msg_size = strlen((char*)plaintxt) - 128;
+
+		char B_hmac_str[129];
+		char message[msg_size+1];
+		strncpy(B_hmac_str, (char*)plaintxt, 128);
+		B_hmac_str[128] = '\0';
+		strncpy(message, (char*)plaintxt + 128, msg_size);
+		message[msg_size] = '\0';
+
+		char* A_hmac_str = hmac(message);
+		
+		if(strcmp(A_hmac_str, B_hmac_str) == 0) {
+			pthread_mutex_lock(&qmx);
+			mq.push_back({false, message,"Incoming",msg_win});
+			pthread_cond_signal(&qcv);
+			pthread_mutex_unlock(&qmx);
+			} 
+		else {
+			pthread_mutex_lock(&qmx);
+			mq.push_back({false,"HMAC does not match!!","System",msg_win});
+			pthread_cond_signal(&qcv);
+			pthread_mutex_unlock(&qmx);
+			}
+
 	}
 	return 0;
 }
+
