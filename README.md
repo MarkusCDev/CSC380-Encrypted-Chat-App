@@ -48,7 +48,7 @@ Note that this project is a class assignment and many more features could be imp
 
 This app was created by the followings:
 
-- [(S)pain](https://github.com/MarkusCDev)
-- [(Bigboikesha)](https://github.com/BigboiKesha)
-- [Poopi](https://github.com/mengwaichan)
+- [Markus Chmiel](https://github.com/MarkusCDev)
+- [Kevin Pechersky](https://github.com/BigboiKesha)
+- [Meng Wai Chan](https://github.com/mengwaichan)
 - [Oumar Barry](https://github.com/OumB2021)
