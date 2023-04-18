@@ -10,7 +10,7 @@ This project implements a chat app with end-to-end encryption and authentication
 
 **Step 1:** If you are running on a windows or ios system, please make sure to [download](https://geo.mirror.pkgbuild.com/iso/2023.03.01/archlinux-2023.03.01-x86_64.iso) the harch iso file in order to install linux os on a virtual machine.
 
-**Step 2:** Follow the instructions on this [link](https://itsfoss.com/install-arch-linux-virtualbox/), it is a step tutorial for installing linux os on a virtual machine using the harch iso file downloaded earlier.
+**Step 2:** Follow the instructions on this [link](https://itsfoss.com/install-arch-linux-virtualbox/), it is a step by step tutorial for installing linux os on a virtual machine using the harch iso file downloaded earlier.
 
 **_Installation_**
 
@@ -20,7 +20,7 @@ This project implements a chat app with end-to-end encryption and authentication
 4. Once you have it complied you can run `./chat -h` to see a list of options
 5. Run the app: `./chat -l` to listen on a server. The default server is 1337
 6. In another console, type the following command `./chat -p 1337` to connect to the port.
-7. Optional: If the host port forwards on the 1337 port you can alternatley connect to host with the command `./chat -c ip_address`.
+7. Optional: If the host port forwards on the 1337 port you can alternatively connect to host with the command `./chat -c ip_address`.
 8. Have fun ! :)
 
 Note: Your virtual machine MUST be git ready before being able to clone the repository. The following [link](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys) will show you how to set it up.
