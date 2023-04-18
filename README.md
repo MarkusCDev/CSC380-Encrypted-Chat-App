@@ -17,10 +17,11 @@ This project implements a chat app with end-to-end encryption and authentication
 1. On your virtual machine, open a console and clone the repository : `git clone git@github.com:MarkusCDev/csc380-p1.git`
 2. Change the directory to the folder where the repository will be downloaded : `cd csc380-p1`
 3. compile the app: `make`. If you happen to have an issue compiling the app, please make sure you clear the existing Make file by running `make clean`
-4. Run the app: `./chat -l` to listen on a server. The default server is 1337
-5. In another console, type the following command `./chat -p 1337` to connect to the port.
-6. Optional: If the host port forwards on the 1337 port you can alternatley connect to host with the command `./chat -c ip_address`.
-7. Have fun ! :)
+4. Once you have it complied you can run `./chat -h` to see a list of options
+5. Run the app: `./chat -l` to listen on a server. The default server is 1337
+6. In another console, type the following command `./chat -p 1337` to connect to the port.
+7. Optional: If the host port forwards on the 1337 port you can alternatley connect to host with the command `./chat -c ip_address`.
+8. Have fun ! :)
 
 Note: Your virtual machine MUST be git ready before being able to clone the repository. The following [link](https://docs.github.com/en/authentication/connecting-to-github-with-ssh/checking-for-existing-ssh-keys) will show you how to set it up.
 
