@@ -37,7 +37,7 @@ Note: Your virtual machine MUST be git ready before being able to clone the repo
 
 ## Vulnerability
 
-The vulnerability associated with a TCP SYN-ACK response was exploited using a DOS python script paired with tools in a kali debian environment. By using fragmented scanning, instead of just pinging, and utilizing the -Pn command in addition to -v on nmap to debug, it was determined that there was multiple ways to circumvent the chat and connect to listening host. We patched one issue that would close the port immediately to prevent connection. On an incomplete project, it is determined to be possible to use DOS to connect, although the connection would close once the next request would come in. IN addition, the port that is open must be made known in order to successfully simulate the attack, as well as the host IP. Different vulnerabilities can be carried out afterwards, with the earmark "escape vulnerabilities" meant to escape the hypervisor and access the host's main PC. What is achievable is manipulating the TCP port and closing the port forcefully. Additionally, on the barebones implementation, running the commands to DOS or slow the connection before the listening command is run starts the chat function
+Several vulnerabilities were found.
 
 ## Constribution
 
