@@ -31,6 +31,7 @@ Note: Your virtual machine MUST be git ready before being able to clone the repo
 - Message integrity: To ensure message integrity and avoid tampering, message authentication codes (MACs) are implemented.
 - Key exchange: Diffie-Hellman key exchange is used to securely exchange encryption keys between users. The DH 512 bit key is split into two 256 keys, one for AES and the other for HMAC.
 - Encryption Scheme: AES(plaintxt || HMAC(plaintxt) 
+<img src="https://i.gyazo.com/c07040b082eef0f846abea7d8c4b322d.png" width=600>
 
 ## Technologies used:
 
