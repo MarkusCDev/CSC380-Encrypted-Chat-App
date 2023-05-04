@@ -18,7 +18,7 @@ This project implements a chat app with end-to-end encryption and authentication
 2. Change the directory to the folder where the repository will be downloaded : `cd csc380-p1`
 3. compile the app: `make`. If you happen to have an issue compiling the app, please make sure you clear the existing Make file by running `make clean`
 4. Once you have it complied you can run `./chat -h` to see a list of options
-5. Run the app: `./chat -l` to listen on a server. The default server is 1337
+5. Run the app: `./chat -l` to listen on the default port: 1337.
 6. In another console, type the following command `./chat -p 1337` to connect to the port.
 7. Optional: If the host port forwards on the 1337 port you can alternatively connect to host with the command `./chat -c ip_address`.
 8. Have fun ! :)
